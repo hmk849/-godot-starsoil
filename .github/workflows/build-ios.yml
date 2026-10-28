@@ -122,9 +122,9 @@ jobs:
 
           "$GODOT" --headless --path game --editor --import --quit
 
-          "$GODOT" --headless --path game \
-            --export-release iOS \
-            "$PWD/output/Starsoil-iOS.zip"
+          “$GODOT” –headless –verbose –path game 
+            –export-release iOS 
+            “$PWD/output/Starsoil-iOS.zip”
 
           unzip -q output/Starsoil-iOS.zip -d output/xcode
 
