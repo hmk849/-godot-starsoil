@@ -23,6 +23,27 @@ jobs:
           PROJECT=$(find unpack -type f -name project.godot -print -quit)
           test -n "$PROJECT"
           cp -R "$(dirname "$PROJECT")/." game/
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("game/project.godot")
+          s = p.read_text()
+          key = "textures/vram_compression/import_etc2_astc"
+          if key in s:
+              s = re.sub(
+                  r'(?m)^textures/vram_compression/import_etc2_astc=.*$',
+                  key + '=true', s, count=1
+              )
+          elif "[rendering]" in s:
+              s = s.replace(
+                  "[rendering]",
+                  "[rendering]\n" + key + "=true", 1
+              )
+          else:
+              s += "\n[rendering]\n" + key + "=true\n"
+          p.write_text(s)
+          print("已更新移动端纹理设置")
+          PY
 
           python3 - <<'PY'
           from pathlib import Path
