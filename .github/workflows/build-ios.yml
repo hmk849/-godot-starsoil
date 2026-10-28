@@ -75,10 +75,10 @@ jobs:
             --path game \
             --editor --import --quit
 
-          "$GODOT" --headless \
-            --path game \
+          "$GODOT" --headless \ 
+            --path game \  
             --export-release "iOS" \
-            "$PWD/output/Starsoil-iOS.zip"
+           "$PWD/output/Starsoil-iOS.zip"
 
       - name: Upload result
         if: always()
