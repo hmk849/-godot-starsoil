@@ -152,14 +152,14 @@ jobs:
       - name: Export iOS Xcode project
         run: |
           set -euo pipefail
-          mkdir -p output/xcode
+          mkdir -p output
 
           "$GODOT" --headless --path game --editor --import --quit
           "$GODOT" --headless --path game --editor --quit
 
           set +e
           "$GODOT" --headless --verbose --path game \
-            --export-release iOS "$PWD/output/xcode" \
+            --export-release iOS "$PWD/output/Starsoil-iOS" \
             2>&1 | tee /tmp/godot-export.log
           STATUS=${PIPESTATUS[0]}
           set -e
@@ -169,14 +169,19 @@ jobs:
             exit "$STATUS"
           fi
 
-          echo "===== 导出目录 ====="
-          find output/xcode -maxdepth 4 -print
+          echo "===== 搜索 Xcode 工程 ====="
+          find output -name '*.xcodeproj' -type d -print
 
-          PROJECT=$(find output/xcode -name '*.xcodeproj' -type d -print -quit)
+          PROJECT=$(find output -name '*.xcodeproj' -type d -print -quit)
+
           if [ -z "$PROJECT" ]; then
-            echo "ERROR: 未找到 Xcode 工程"
+            echo "ERROR: 导出后仍未找到 .xcodeproj"
+            echo "===== 输出目录 ====="
+            find output -maxdepth 5 -print
             exit 1
           fi
+
+          echo "找到 Xcode 工程：$PROJECT"
 
       - name: Compile unsigned IPA
         run: |
