@@ -121,7 +121,8 @@ jobs:
           mkdir -p output
 
           "$GODOT" --headless --path game --editor --import --quit
-
+          
+          "$GODOT" --headless --path game --editor --quit 2>&1 | tee /tmp/godot-editor.log
           “$GODOT” –headless –verbose –path game 
             –export-release iOS 
             “$PWD/output/Starsoil-iOS.zip”
