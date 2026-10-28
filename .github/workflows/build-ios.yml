@@ -61,11 +61,11 @@ jobs:
           block = s[start_options:next_section]
 
           if pattern.search(block):
-          block = pattern.sub(
-             'application/app_store_team_id="ABCDE12345"',
-              block,
-              count=1
-          )
+              block = pattern.sub(
+                  'application/app_store_team_id="ABCDE12345"',
+                  block,
+                  count=1
+              )
           else:
               block = block.replace(
                   options_header,
