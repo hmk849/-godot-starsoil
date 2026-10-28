@@ -62,14 +62,14 @@ jobs:
 
           if pattern.search(block):
               block = pattern.sub(
-                  'application/app_store_team_id="ABCDE12345"',
+                  'application/app_store_team_id=""',
                   block,
                   count=1
               )
           else:
               block = block.replace(
                   options_header,
-                  options_header + '\napplication/app_store_team_id="ABCDE12345"',
+                  options_header + '\napplication/app_store_team_id=""',
                   1
               )
 
