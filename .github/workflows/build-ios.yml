@@ -23,7 +23,23 @@ jobs:
 
           mkdir -p game
           unzip -q /tmp/godot-starsoil.zip -d game
-          test -f game/project.godot
+
+          PROJECT=$(find game -name project.godot -type f -print -quit)
+
+          if [ -z "$PROJECT" ]; then
+          echo "ERROR: project.godot not found"
+          exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$PROJECT")
+
+          if [ "$PROJECT_DIR" != "game" ]; then
+          mv "$PROJECT_DIR" project-temp
+          rm -rf game
+          mv project-temp game
+          fi
+
+          echo "Godot project found!"
 
       - name: Install Godot
         run: |
