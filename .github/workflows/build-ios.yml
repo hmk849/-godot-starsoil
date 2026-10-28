@@ -62,7 +62,7 @@ jobs:
 
           if pattern.search(block):
               block = pattern.sub(
-                  'application/app_store_team_id=""',
+                  'application/app_store_team_id="ABCDE12345"',
                   block,
                   count=1
               )
