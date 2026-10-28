@@ -121,11 +121,22 @@ jobs:
           mkdir -p output
 
           "$GODOT" --headless --path game --editor --import --quit
-          
+
           "$GODOT" --headless --path game --editor --quit 2>&1 | tee /tmp/godot-editor.log
-          “$GODOT” –headless –verbose –path game 
-            –export-release iOS 
-            “$PWD/output/Starsoil-iOS.zip”
+
+          set +e
+          "$GODOT" --headless --verbose --path game \
+            --export-release iOS \
+            "$PWD/output/Starsoil-iOS.zip" \
+            2>&1 | tee /tmp/godot-export.log
+          EXPORT_STATUS=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$EXPORT_STATUS" -ne 0 ]; then
+            echo "===== Godot export failed; recent log ====="
+            tail -n 200 /tmp/godot-export.log
+            exit "$EXPORT_STATUS"
+          fi
 
           unzip -q output/Starsoil-iOS.zip -d output/xcode
 
