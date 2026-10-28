@@ -187,7 +187,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          PROJECT=$(find output/xcode -name '*.xcodeproj' -type d -print -quit)
+          PROJECT=$(find output -name '*.xcodeproj' -type d -print -quit)
           test -n "$PROJECT"
           export PROJECT
 
