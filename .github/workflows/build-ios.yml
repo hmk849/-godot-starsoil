@@ -104,6 +104,17 @@ jobs:
           cp -R /tmp/templates/templates/. \
             "$HOME/Library/Application Support/Godot/export_templates/${VERSION}.stable/"
 
+      - name: Diagnose iOS export preset
+        run: |
+          set -euo pipefail
+          echo “===== export_presets.cfg =====”
+          if [ -f game/export_presets.cfg ]; then
+          cat game/export_presets.cfg
+          else
+          echo “ERROR: game/export_presets.cfg 不存在”
+          exit 1
+          fi
+
       - name: Export iOS Xcode project
         run: |
           set -euo pipefail
