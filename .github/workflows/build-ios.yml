@@ -95,6 +95,16 @@ jobs:
               )
 
           s = s[:start_options] + block + s[next_section:]
+          key = "application/export_project_only"
+          if re.search(r'(?m)^' + re.escape(key) + r'=.*$', block):
+              block = re.sub(
+                  r'(?m)^' + re.escape(key) + r'=.*$',
+                  key + '=true',
+                  block,
+                  count=1
+              )
+          else:
+              block += '\n' + key + '=true\n'
           p.write_text(s)
           print("已更新 iOS 导出预设的 Team ID 配置")
           PY
