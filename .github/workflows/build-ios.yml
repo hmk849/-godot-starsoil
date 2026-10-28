@@ -152,28 +152,31 @@ jobs:
       - name: Export iOS Xcode project
         run: |
           set -euo pipefail
-          mkdir -p output
+          mkdir -p output/xcode
 
           "$GODOT" --headless --path game --editor --import --quit
-
-          "$GODOT" --headless --path game --editor --quit \
-            2>&1 | tee /tmp/godot-editor.log
+          "$GODOT" --headless --path game --editor --quit
 
           set +e
           "$GODOT" --headless --verbose --path game \
-            --export-release iOS \
-            "$PWD/output/Starsoil-iOS.zip" \
+            --export-release iOS "$PWD/output/xcode" \
             2>&1 | tee /tmp/godot-export.log
-          EXPORT_STATUS=${PIPESTATUS[0]}
+          STATUS=${PIPESTATUS[0]}
           set -e
 
-          if [ "$EXPORT_STATUS" -ne 0 ]; then
-            echo "===== Godot export failed; recent log ====="
+          if [ "$STATUS" -ne 0 ]; then
             tail -n 200 /tmp/godot-export.log
-            exit "$EXPORT_STATUS"
+            exit "$STATUS"
           fi
 
-          unzip -q output/Starsoil-iOS.zip -d output/xcode
+          echo "===== 导出目录 ====="
+          find output/xcode -maxdepth 4 -print
+
+          PROJECT=$(find output/xcode -name '*.xcodeproj' -type d -print -quit)
+          if [ -z "$PROJECT" ]; then
+            echo "ERROR: 未找到 Xcode 工程"
+            exit 1
+          fi
 
       - name: Compile unsigned IPA
         run: |
