@@ -26,14 +26,56 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('game/export_presets.cfg')
+          import re
+
+          p = Path("game/export_presets.cfg")
           s = p.read_text()
-          s = s.replace(
-              '[preset.0.options]',
-              '[preset.0.options]\napplication/app_store_team_id="ABCDE12345"\n',
-              1
+
+          sections = list(re.finditer(r'(?m)^\[preset\.(\d+)\]\s*$', s))
+
+          target = None
+          for i, match in enumerate(sections):
+              end = sections[i + 1].start() if i + 1 < len(sections) else len(s)
+              block = s[match.start():end]
+              if re.search(r'(?m)^name="iOS"\s*$', block):
+                  target = (match.group(1), match.start(), end)
+                  break
+
+          if target is None:
+              raise SystemExit("ERROR: 找不到名称为 iOS 的导出预设")
+
+          index, start, end = target
+          options_header = f"[preset.{index}.options]"
+          if options_header not in s:
+              raise SystemExit("ERROR: 找不到 iOS 导出选项区")
+
+          pattern = re.compile(
+              r'(?m)^application/app_store_team_id=.*$'
           )
+
+          start_options = s.index(options_header, start, end)
+          next_section = s.find("\n[preset.", start_options + len(options_header))
+          if next_section == -1:
+              next_section = len(s)
+
+          block = s[start_options:next_section]
+
+          if pattern.search(block):
+          block = pattern.sub(
+             'application/app_store_team_id="ABCDE12345"',
+              block,
+              count=1
+          )
+          else:
+              block = block.replace(
+                  options_header,
+                  options_header + '\napplication/app_store_team_id="ABCDE12345"',
+                  1
+              )
+
+          s = s[:start_options] + block + s[next_section:]
           p.write_text(s)
+          print("已更新 iOS 导出预设的 Team ID 配置")
           PY
 
       - name: Install Godot
