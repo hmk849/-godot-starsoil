@@ -1,0 +1,72 @@
+name: Build Godot iOS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - name: Download game source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download \
+            --repo "${{ github.repository }}" \
+            --pattern "starsoil-source.zip" \
+            --dir /tmp
+
+          mkdir -p game
+          unzip -q /tmp/starsoil-source.zip -d game
+          test -f game/project.godot
+
+      - name: Install Godot
+        run: |
+          curl -fL --retry 3 \
+            -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_macos.universal.zip
+
+          mkdir -p /tmp/godotapp
+          unzip -q /tmp/godot.zip -d /tmp/godotapp
+
+          GODOT=$(find /tmp/godotapp -type f \
+            -path '*/Contents/MacOS/Godot' | head -1)
+
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+
+          curl -fL --retry 3 \
+            -o /tmp/templates.tpz \
+            https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz
+
+          mkdir -p /tmp/templates
+          unzip -q /tmp/templates.tpz -d /tmp/templates
+
+          mkdir -p "$HOME/Library/Application Support/Godot/export_templates/4.4.1.stable"
+
+          cp -R /tmp/templates/templates/. \
+            "$HOME/Library/Application Support/Godot/export_templates/4.4.1.stable/"
+
+      - name: Export iOS project
+        run: |
+          mkdir -p output
+
+          "$GODOT" --headless \
+            --path game \
+            --editor --import --quit
+
+          "$GODOT" --headless \
+            --path game \
+            --export-release "iOS" \
+            "$PWD/output/Starsoil-iOS.zip"
+
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Starsoil-iOS
+          path: output/
