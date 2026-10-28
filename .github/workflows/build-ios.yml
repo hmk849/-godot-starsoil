@@ -18,11 +18,11 @@ jobs:
         run: |
           gh release download \
             --repo "${{ github.repository }}" \
-            --pattern "starsoil-source.zip" \
+            --pattern "godot-starsoil.zip" \
             --dir /tmp
 
           mkdir -p game
-          unzip -q /tmp/starsoil-source.zip -d game
+          unzip -q /tmp/godot-starsoil.zip -d game
           test -f game/project.godot
 
       - name: Install Godot
