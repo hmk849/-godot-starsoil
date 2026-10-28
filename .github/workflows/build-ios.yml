@@ -1,4 +1,4 @@
-name: Build Godot iOS
+name: Build unsigned iOS IPA
 
 on:
   workflow_dispatch:
@@ -9,80 +9,124 @@ permissions:
 jobs:
   build:
     runs-on: macos-15
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
-      - name: Download game source
+      - name: Download and unpack source
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download \
-            --repo "${{ github.repository }}" \
-            --pattern "godot-starsoil.zip" \
-            --dir /tmp
+          set -euo pipefail
+          gh release download --repo "${{ github.repository }}" --pattern 'godot-starsoil.zip' --dir /tmp
+          mkdir -p unpack game
+          unzip -q /tmp/godot-starsoil.zip -d unpack
+          PROJECT=$(find unpack -type f -name project.godot -print -quit)
+          test -n "$PROJECT"
+          cp -R "$(dirname "$PROJECT")/." game/
 
-          mkdir -p game
-          unzip -q /tmp/godot-starsoil.zip -d game
-
-          PROJECT=$(find game -name project.godot -type f -print -quit)
-
-          if [ -z "$PROJECT" ]; then
-          echo "ERROR: project.godot not found"
-          exit 1
-          fi
-
-          PROJECT_DIR=$(dirname "$PROJECT")
-
-          if [ "$PROJECT_DIR" != "game" ]; then
-          mv "$PROJECT_DIR" project-temp
-          rm -rf game
-          mv project-temp game
-          fi
-
-          echo "Godot project found!"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('game/export_presets.cfg')
+          s = p.read_text()
+          s = s.replace(
+              '[preset.0.options]',
+              '[preset.0.options]\napplication/app_store_team_id="ABCDE12345"\n',
+              1
+          )
+          p.write_text(s)
+          PY
 
       - name: Install Godot
         run: |
-          curl -fL --retry 3 \
-            -o /tmp/godot.zip \
-            https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_macos.universal.zip
+          set -euo pipefail
+          VERSION=4.4.1
+
+          curl -fL --retry 3 -o /tmp/godot.zip \
+            "https://github.com/godotengine/godot-builds/releases/download/${VERSION}-stable/Godot_v${VERSION}-stable_macos.universal.zip"
 
           mkdir -p /tmp/godotapp
           unzip -q /tmp/godot.zip -d /tmp/godotapp
 
-          GODOT=$(find /tmp/godotapp -type f \
-            -path '*/Contents/MacOS/Godot' | head -1)
-
+          GODOT=$(find /tmp/godotapp -type f -path '*/Contents/MacOS/Godot' -print -quit)
+          test -n "$GODOT"
           echo "GODOT=$GODOT" >> "$GITHUB_ENV"
 
-          curl -fL --retry 3 \
-            -o /tmp/templates.tpz \
-            https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz
+          curl -fL --retry 3 -o /tmp/templates.tpz \
+            "https://github.com/godotengine/godot-builds/releases/download/${VERSION}-stable/Godot_v${VERSION}-stable_export_templates.tpz"
 
           mkdir -p /tmp/templates
+          mkdir -p "$HOME/Library/Application Support/Godot/export_templates/${VERSION}.stable"
+
           unzip -q /tmp/templates.tpz -d /tmp/templates
 
-          mkdir -p "$HOME/Library/Application Support/Godot/export_templates/4.4.1.stable"
-
           cp -R /tmp/templates/templates/. \
-            "$HOME/Library/Application Support/Godot/export_templates/4.4.1.stable/"
+            "$HOME/Library/Application Support/Godot/export_templates/${VERSION}.stable/"
 
-      - name: Export iOS project
+      - name: Export iOS Xcode project
         run: |
+          set -euo pipefail
           mkdir -p output
 
-          "$GODOT" --headless \
-            --path game \
-            --editor --import --quit
+          "$GODOT" --headless --path game --editor --import --quit
 
-          "$GODOT" --headless \ 
-            --path game \  
-            --export-release "iOS" \
-           "$PWD/output/Starsoil-iOS.zip"
+          "$GODOT" --headless --path game \
+            --export-release iOS \
+            "$PWD/output/Starsoil-iOS.zip"
 
-      - name: Upload result
+          unzip -q output/Starsoil-iOS.zip -d output/xcode
+
+      - name: Compile unsigned IPA
+        run: |
+          set -euo pipefail
+
+          PROJECT=$(find output/xcode -name '*.xcodeproj' -type d -print -quit)
+          test -n "$PROJECT"
+
+          export PROJECT
+
+          SCHEME=$(python3 - <<'PY'
+          import json, os, subprocess
+          p = os.environ['PROJECT']
+          result = subprocess.check_output(
+              ['xcodebuild', '-list', '-json', '-project', p],
+              text=True
+          )
+          data = json.loads(result)['project']
+          schemes = data.get('schemes', [])
+          print(schemes[0] if schemes else data['targets'][0])
+          PY
+          )
+
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$PWD/output/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            DEVELOPMENT_TEAM='' \
+            build
+
+          APP=$(find output/DerivedData/Build/Products/Release-iphoneos \
+            -maxdepth 1 -name '*.app' -type d -print -quit)
+
+          test -n "$APP"
+
+          mkdir -p output/Payload
+          cp -R "$APP" output/Payload/
+
+          cd output
+          zip -qry Starsoil-unsigned.ipa Payload
+
+      - name: Upload IPA
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Starsoil-iOS
-          path: output/
+          name: Starsoil-iOS-build
+          path: |
+            output/Starsoil-unsigned.ipa
+            output/Starsoil-iOS.zip
+          if-no-files-found: warn
