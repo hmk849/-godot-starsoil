@@ -23,15 +23,18 @@ jobs:
           PROJECT=$(find unpack -type f -name project.godot -print -quit)
           test -n "$PROJECT"
           cp -R "$(dirname "$PROJECT")/." game/
+
           python3 - <<'PY'
           from pathlib import Path
           import re
+
           p = Path("game/project.godot")
           s = p.read_text()
           key = "textures/vram_compression/import_etc2_astc"
-          if key in s:
+
+          if re.search(r'(?m)^' + re.escape(key) + r'=.*$', s):
               s = re.sub(
-                  r'(?m)^textures/vram_compression/import_etc2_astc=.*$',
+                  r'(?m)^' + re.escape(key) + r'=.*$',
                   key + '=true', s, count=1
               )
           elif "[rendering]" in s:
@@ -41,6 +44,7 @@ jobs:
               )
           else:
               s += "\n[rendering]\n" + key + "=true\n"
+
           p.write_text(s)
           print("已更新移动端纹理设置")
           PY
@@ -53,8 +57,8 @@ jobs:
           s = p.read_text()
 
           sections = list(re.finditer(r'(?m)^\[preset\.(\d+)\]\s*$', s))
-
           target = None
+
           for i, match in enumerate(sections):
               end = sections[i + 1].start() if i + 1 < len(sections) else len(s)
               block = s[match.start():end]
@@ -67,12 +71,9 @@ jobs:
 
           index, start, end = target
           options_header = f"[preset.{index}.options]"
+
           if options_header not in s:
               raise SystemExit("ERROR: 找不到 iOS 导出选项区")
-
-          pattern = re.compile(
-              r'(?m)^application/app_store_team_id=.*$'
-          )
 
           start_options = s.index(options_header, start, end)
           next_section = s.find("\n[preset.", start_options + len(options_header))
@@ -81,32 +82,38 @@ jobs:
 
           block = s[start_options:next_section]
 
-          if pattern.search(block):
-              block = pattern.sub(
-                  'application/app_store_team_id="ABCDE12XYZ"',
+          team_key = "application/app_store_team_id"
+          team_line = team_key + '="ABCDE12XYZ"'
+
+          if re.search(r'(?m)^' + re.escape(team_key) + r'=.*$', block):
+              block = re.sub(
+                  r'(?m)^' + re.escape(team_key) + r'=.*$',
+                  lambda _: team_line,
                   block,
                   count=1
               )
           else:
               block = block.replace(
                   options_header,
-                  options_header + '\napplication/app_store_team_id="ABCDE12XYZ"',
+                  options_header + "\n" + team_line,
                   1
               )
 
-          s = s[:start_options] + block + s[next_section:]
-          key = "application/export_project_only"
-          if re.search(r'(?m)^' + re.escape(key) + r'=.*$', block):
+          export_key = "application/export_project_only"
+
+          if re.search(r'(?m)^' + re.escape(export_key) + r'=.*$', block):
               block = re.sub(
-                  r'(?m)^' + re.escape(key) + r'=.*$',
-                  key + '=true',
+                  r'(?m)^' + re.escape(export_key) + r'=.*$',
+                  export_key + "=true",
                   block,
                   count=1
               )
           else:
-              block += '\n' + key + '=true\n'
+              block += "\n" + export_key + "=true\n"
+
+          s = s[:start_options] + block + s[next_section:]
           p.write_text(s)
-          print("已更新 iOS 导出预设的 Team ID 配置")
+          print("已设置 iOS 仅导出 Xcode 工程")
           PY
 
       - name: Install Godot
@@ -138,13 +145,9 @@ jobs:
       - name: Diagnose iOS export preset
         run: |
           set -euo pipefail
-          echo “===== export_presets.cfg =====”
-          if [ -f game/export_presets.cfg ]; then
+          echo "===== export_presets.cfg ====="
+          test -f game/export_presets.cfg
           cat game/export_presets.cfg
-          else
-          echo “ERROR: game/export_presets.cfg 不存在”
-          exit 1
-          fi
 
       - name: Export iOS Xcode project
         run: |
@@ -153,7 +156,8 @@ jobs:
 
           "$GODOT" --headless --path game --editor --import --quit
 
-          "$GODOT" --headless --path game --editor --quit 2>&1 | tee /tmp/godot-editor.log
+          "$GODOT" --headless --path game --editor --quit \
+            2>&1 | tee /tmp/godot-editor.log
 
           set +e
           "$GODOT" --headless --verbose --path game \
@@ -177,19 +181,18 @@ jobs:
 
           PROJECT=$(find output/xcode -name '*.xcodeproj' -type d -print -quit)
           test -n "$PROJECT"
-
           export PROJECT
 
           SCHEME=$(python3 - <<'PY'
           import json, os, subprocess
-          p = os.environ['PROJECT']
+          p = os.environ["PROJECT"]
           result = subprocess.check_output(
-              ['xcodebuild', '-list', '-json', '-project', p],
+              ["xcodebuild", "-list", "-json", "-project", p],
               text=True
           )
-          data = json.loads(result)['project']
-          schemes = data.get('schemes', [])
-          print(schemes[0] if schemes else data['targets'][0])
+          data = json.loads(result)["project"]
+          schemes = data.get("schemes", [])
+          print(schemes[0] if schemes else data["targets"][0])
           PY
           )
 
@@ -208,7 +211,6 @@ jobs:
 
           APP=$(find output/DerivedData/Build/Products/Release-iphoneos \
             -maxdepth 1 -name '*.app' -type d -print -quit)
-
           test -n "$APP"
 
           mkdir -p output/Payload
